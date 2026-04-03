@@ -440,11 +440,39 @@ $btnBoth.Add_Click({
 })
 $leftPanel.Controls.Add($btnBoth)
 
-# Section: อื่นๆ
-$sec3 = New-Label "🔧  เครื่องมืออื่นๆ" 0 310 330 24 $accentGreen 11 Bold
+# Section: Roblox FPS Boost
+$accentOrange = [System.Drawing.Color]::FromArgb(255, 120, 0)
+$sec25 = New-Label "🎮  Roblox FPS Boost" 0 305 330 24 $accentOrange 11 Bold
+$leftPanel.Controls.Add($sec25)
+
+$btnRoblox = New-FancyButton "Boost FPS Roblox" 0 333 330 50 ([System.Drawing.Color]::FromArgb(200, 80, 0)) "🚀"
+$btnRoblox.Add_Click({
+    if ([System.Windows.Forms.MessageBox]::Show(
+        "Boost FPS สำหรับ Roblox?`n`nสิ่งที่จะทำ:`n• CPU Priority → High`n• ปิด Nagle's Algorithm (ลด Ping)`n• GPU → High Performance`n• ล้าง Roblox Cache`n• ตั้ง Ultimate Performance Power Plan`n• ปิด Fullscreen Optimization`n• เปิด Game Mode",
+        "ยืนยัน Roblox FPS Boost", "YesNo", "Question") -eq "Yes") {
+        $logBox.Clear()
+        Boost-RobloxFPS
+    }
+})
+$leftPanel.Controls.Add($btnRoblox)
+
+$btnAllInOne = New-FancyButton "ALL-IN-ONE (ทุกอย่าง)" 0 393 330 50 ([System.Drawing.Color]::FromArgb(180, 0, 100)) "💥"
+$btnAllInOne.Font = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+$btnAllInOne.Add_Click({
+    if ([System.Windows.Forms.MessageBox]::Show(
+        "รันทุกฟังก์ชันพร้อมกัน?`n• ปรับแต่งคอม`n• ปิด Windows AI`n• Boost FPS Roblox",
+        "ALL-IN-ONE", "YesNo", "Question") -eq "Yes") {
+        $logBox.Clear()
+        Optimize-PC
+        Disable-WindowsAI
+        Boost-RobloxFPS
+    }
+})
+$leftPanel.Controls.Add($btnAllInOne)
+$sec3 = New-Label "🔧  เครื่องมืออื่นๆ" 0 430 330 24 $accentGreen 11 Bold
 $leftPanel.Controls.Add($sec3)
 
-$btnRestart = New-FancyButton "รีสตาร์ทเครื่อง" 0 338 155 44 ([System.Drawing.Color]::FromArgb(180,80,0)) "🔄"
+$btnRestart = New-FancyButton "รีสตาร์ทเครื่อง" 0 458 155 44 ([System.Drawing.Color]::FromArgb(180,80,0)) "🔄"
 $btnRestart.Add_Click({
     if ([System.Windows.Forms.MessageBox]::Show("รีสตาร์ทเครื่องเลยไหม?","ยืนยัน","YesNo","Warning") -eq "Yes") {
         Restart-Computer -Force
@@ -452,11 +480,11 @@ $btnRestart.Add_Click({
 })
 $leftPanel.Controls.Add($btnRestart)
 
-$btnClearLog = New-FancyButton "ล้าง Log" 165 338 155 44 ([System.Drawing.Color]::FromArgb(50,50,70)) "🗑"
+$btnClearLog = New-FancyButton "ล้าง Log" 165 458 155 44 ([System.Drawing.Color]::FromArgb(50,50,70)) "🗑"
 $btnClearLog.Add_Click({ $logBox.Clear() })
 $leftPanel.Controls.Add($btnClearLog)
 
-$btnExit = New-FancyButton "ออกจากโปรแกรม" 0 392 330 44 ([System.Drawing.Color]::FromArgb(180,0,40)) "✕"
+$btnExit = New-FancyButton "ออกจากโปรแกรม" 0 512 330 44 ([System.Drawing.Color]::FromArgb(180,0,40)) "✕"
 $btnExit.Add_Click({ $form.Close() })
 $leftPanel.Controls.Add($btnExit)
 
@@ -483,12 +511,12 @@ $rightPanel.Controls.Add($logBox)
 
 # ── Welcome message ──────────────────────────────────────────
 Write-Log "══════════════════════════════"
-Write-Log "  PC Optimizer พร้อมใช้งาน!"
+Write-Log "  PC Optimizer v2.0 พร้อมใช้!"
 Write-Log "══════════════════════════════"
 Write-Log "เลือกตัวเลือกจากเมนูด้านซ้าย"
 Write-Log ""
-Write-Log "แนะนำ: กด 'ทำทั้งคู่' เพื่อ"
-Write-Log "ผลลัพธ์ที่ดีที่สุด" "INFO"
+Write-Log "🎮 Roblox? กด 'Boost FPS Roblox'"
+Write-Log "💥 ทุกอย่าง? กด 'ALL-IN-ONE'" "OK"
 
 # ── แสดงหน้าต่าง ─────────────────────────────────────────────
 [System.Windows.Forms.Application]::EnableVisualStyles()
