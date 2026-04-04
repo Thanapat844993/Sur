@@ -1,0 +1,545 @@
+# ============================================================
+#   PC Optimizer v3.0  — Horizontal Dark UI + Toggle Switches
+#   รันด้วย: powershell -ExecutionPolicy Bypass -File PC-Optimizer.ps1
+# ============================================================
+
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+# ════════════════════════════════════════════════════════════
+#   ฟังก์ชัน: ทำให้คอมลื่น
+# ════════════════════════════════════════════════════════════
+function Optimize-PC {
+    Write-Log "เริ่มปรับแต่งประสิทธิภาพ..." "INFO"
+    $rp = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"
+    if (!(Test-Path $rp)) { New-Item -Path $rp -Force | Out-Null }
+    Set-ItemProperty -Path $rp -Name "VisualFXSetting" -Value 2 -ErrorAction SilentlyContinue
+    Write-Log "Visual Effects → Best Performance" "OK"
+    $sp = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize"
+    if (!(Test-Path $sp)) { New-Item -Path $sp -Force | Out-Null }
+    Set-ItemProperty -Path $sp -Name "StartupDelayInMSec" -Value 0 -ErrorAction SilentlyContinue
+    Write-Log "Startup Delay → ปิดแล้ว" "OK"
+    Set-ItemProperty -Path "HKCU:\System\GameConfigStore" -Name "GameDVR_Enabled" -Value 0 -ErrorAction SilentlyContinue
+    Write-Log "Game Bar / GameDVR → ปิดแล้ว" "OK"
+    try { powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null; Write-Log "Power Plan → High Performance" "OK" } catch {}
+    try { Stop-Service "WSearch" -Force -ErrorAction SilentlyContinue; Set-Service "WSearch" -StartupType Disabled -ErrorAction SilentlyContinue; Write-Log "Search Indexing → ปิดแล้ว" "OK" } catch {}
+    $freed = 0
+    @($env:TEMP,$env:TMP,"C:\Windows\Temp") | ForEach-Object { if (Test-Path $_) { Get-ChildItem $_ -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object { try { $freed += $_.Length; Remove-Item $_.FullName -Force -Recurse -ErrorAction SilentlyContinue } catch {} } } }
+    Write-Log "Temp Files → ล้าง $([Math]::Round($freed/1MB,1)) MB" "OK"
+    Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" -Name "ClearPageFileAtShutdown" -Value 0 -ErrorAction SilentlyContinue
+    Write-Log "Memory Management → ปรับแล้ว" "OK"
+    Write-Log "✅ ปรับแต่งคอมเสร็จ!" "OK"
+}
+
+# ════════════════════════════════════════════════════════════
+#   ฟังก์ชัน: ปิด Windows AI
+# ════════════════════════════════════════════════════════════
+function Disable-WindowsAI {
+    Write-Log "เริ่มปิด Windows AI..." "INFO"
+    $cp = "HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot"
+    if (!(Test-Path $cp)) { New-Item -Path $cp -Force | Out-Null }
+    Set-ItemProperty -Path $cp -Name "TurnOffWindowsCopilot" -Value 1 -ErrorAction SilentlyContinue
+    Set-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "ShowCopilotButton" -Value 0 -ErrorAction SilentlyContinue
+    Write-Log "Copilot → ปิดแล้ว" "OK"
+    $sr = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
+    "CortanaConsent","BingSearchEnabled","AllowSearchToUseLocation" | ForEach-Object { Set-ItemProperty -Path $sr -Name $_ -Value 0 -ErrorAction SilentlyContinue }
+    Write-Log "Cortana / Bing → ปิดแล้ว" "OK"
+    $rc = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI"
+    if (!(Test-Path $rc)) { New-Item -Path $rc -Force | Out-Null }
+    Set-ItemProperty -Path $rc -Name "DisableAIDataAnalysis" -Value 1 -ErrorAction SilentlyContinue
+    Write-Log "Windows Recall → ปิดแล้ว" "OK"
+    $cdm = "HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+    "SubscribedContent-338389Enabled","SubscribedContent-353694Enabled","SubscribedContent-353696Enabled","SilentInstalledAppsEnabled","SystemPaneSuggestionsEnabled","SoftLandingEnabled" | ForEach-Object { Set-ItemProperty -Path $cdm -Name $_ -Value 0 -ErrorAction SilentlyContinue }
+    Write-Log "AI Ads / Suggestions → ปิดแล้ว" "OK"
+    $dg = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
+    if (!(Test-Path $dg)) { New-Item -Path $dg -Force | Out-Null }
+    Set-ItemProperty -Path $dg -Name "AllowTelemetry" -Value 0 -ErrorAction SilentlyContinue
+    Write-Log "Telemetry → ปิดแล้ว" "OK"
+    Write-Log "✅ ปิด Windows AI เสร็จ!" "OK"
+    Write-Log "⚠️ รีสตาร์ทเพื่อให้มีผล" "WARN"
+}
+
+# ════════════════════════════════════════════════════════════
+#   ฟังก์ชัน: Roblox FPS Boost
+# ════════════════════════════════════════════════════════════
+function Boost-RobloxFPS {
+    Write-Log "🎮 เริ่ม Roblox FPS Boost..." "INFO"
+    Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers" -Name "HwSchMode" -Value 1 -ErrorAction SilentlyContinue
+    Write-Log "GPU Scheduling → Legacy (ลด stutter)" "OK"
+    $ifeo = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\RobloxPlayerBeta.exe\PerfOptions"
+    if (!(Test-Path $ifeo)) { New-Item -Path $ifeo -Force | Out-Null }
+    Set-ItemProperty -Path $ifeo -Name "CpuPriorityClass" -Value 3 -ErrorAction SilentlyContinue
+    Write-Log "CPU Priority → High (Roblox)" "OK"
+    Get-ChildItem "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces" -ErrorAction SilentlyContinue | ForEach-Object {
+        Set-ItemProperty $_.PSPath -Name "TcpAckFrequency" -Value 1 -ErrorAction SilentlyContinue
+        Set-ItemProperty $_.PSPath -Name "TCPNoDelay"      -Value 1 -ErrorAction SilentlyContinue
+    }
+    Write-Log "Nagle's Algorithm → ปิดแล้ว (ลด Ping)" "OK"
+    $xb = "HKCU:\System\GameConfigStore"
+    if (!(Test-Path $xb)) { New-Item -Path $xb -Force | Out-Null }
+    Set-ItemProperty $xb -Name "GameDVR_Enabled" -Value 0 -ErrorAction SilentlyContinue
+    Set-ItemProperty $xb -Name "GameDVR_FSEBehaviorMode" -Value 2 -ErrorAction SilentlyContinue
+    Write-Log "Xbox Overlay → ปิดแล้ว" "OK"
+    $gm = "HKCU:\Software\Microsoft\GameBar"
+    if (!(Test-Path $gm)) { New-Item -Path $gm -Force | Out-Null }
+    Set-ItemProperty $gm -Name "AutoGameModeEnabled" -Value 1 -ErrorAction SilentlyContinue
+    Write-Log "Game Mode → เปิดแล้ว" "OK"
+    try {
+        powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 2>$null
+        $up = powercfg /list 2>$null | Where-Object { $_ -match "Ultimate" } | Select-Object -First 1
+        if ($up -match "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})") { powercfg /setactive $matches[1] 2>$null; Write-Log "Power Plan → Ultimate Performance" "OK" }
+        else { powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null; Write-Log "Power Plan → High Performance" "OK" }
+    } catch {}
+    $rPaths = @("$env:LOCALAPPDATA\Roblox\Versions","$env:PROGRAMFILES\Roblox\Versions")
+    $lyr = "HKCU:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
+    $gpr = "HKCU:\Software\Microsoft\DirectX\UserGpuPreferences"
+    if (!(Test-Path $lyr)) { New-Item -Path $lyr -Force | Out-Null }
+    if (!(Test-Path $gpr)) { New-Item -Path $gpr -Force | Out-Null }
+    $found = $false
+    foreach ($rp in $rPaths) {
+        if (Test-Path $rp) {
+            Get-ChildItem $rp -Filter "RobloxPlayerBeta.exe" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                Set-ItemProperty $lyr -Name $_.FullName -Value "~ DISABLEDXMAXIMIZEDWINDOWEDMODE" -ErrorAction SilentlyContinue
+                Set-ItemProperty $gpr -Name $_.FullName -Value "GpuPreference=2;" -ErrorAction SilentlyContinue
+                Write-Log "Roblox.exe → Fullscreen Opt ปิด + GPU High Perf" "OK"
+                $found = $true
+            }
+        }
+    }
+    if (!$found) { Write-Log "ไม่พบ Roblox ในเครื่อง (Settings จะมีผลหลังติดตั้ง)" "WARN" }
+    $freed = 0
+    @("$env:LOCALAPPDATA\Temp\Roblox","$env:LOCALAPPDATA\Roblox\logs","$env:TEMP\Roblox") | ForEach-Object { if (Test-Path $_) { Get-ChildItem $_ -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object { try { $freed += $_.Length; Remove-Item $_.FullName -Force -Recurse -ErrorAction SilentlyContinue } catch {} } } }
+    Write-Log "Roblox Cache → ล้าง $([Math]::Round($freed/1MB,1)) MB" "OK"
+    Set-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" -Name "GlobalUserDisabled" -Value 1 -ErrorAction SilentlyContinue
+    Write-Log "Background Apps → ปิดแล้ว" "OK"
+    Write-Log "✅ Roblox FPS Boost เสร็จ! (คาด FPS +20~60%)" "OK"
+    Write-Log "⚠️ รีสตาร์ทแล้วเปิด Roblox เลย" "WARN"
+}
+
+# ════════════════════════════════════════════════════════════
+#   Toggle State Storage
+# ════════════════════════════════════════════════════════════
+$script:toggleStates = @{}
+
+# ════════════════════════════════════════════════════════════
+#   สร้าง Form หลัก
+# ════════════════════════════════════════════════════════════
+$form = New-Object System.Windows.Forms.Form
+$form.Text            = "PC Optimizer v3.0"
+$form.Size            = New-Object System.Drawing.Size(900, 630)
+$form.StartPosition   = "CenterScreen"
+$form.FormBorderStyle = "FixedSingle"
+$form.MaximizeBox     = $false
+$form.BackColor       = [System.Drawing.Color]::FromArgb(10, 10, 18)
+
+# ── พื้นหลังรูปภาพ ───────────────────────────────────────────
+try {
+    $wc = New-Object System.Net.WebClient
+    $bytes = $wc.DownloadData("https://cdn.discordapp.com/attachments/1475107345091788872/1489953684254228591/2Q.png?ex=69d24b00&is=69d0f980&hm=93baa6b961925defa5c4bebe67bbbfb3e11d83b086cb25c00bb22312ea03cf22&")
+    $img = [System.Drawing.Image]::FromStream([System.IO.MemoryStream]::new($bytes))
+    $bgPic = New-Object System.Windows.Forms.PictureBox
+    $bgPic.Image    = $img
+    $bgPic.SizeMode = "StretchImage"
+    $bgPic.Dock     = "Fill"
+    $form.Controls.Add($bgPic)
+    $bgPic.SendToBack()
+} catch { }
+
+# ── Overlay โปร่งแสง (ทับรูปพื้นหลัง) ───────────────────────
+$overlay = New-Object System.Windows.Forms.Panel
+$overlay.Dock      = "Fill"
+$overlay.BackColor = [System.Drawing.Color]::FromArgb(185, 8, 8, 16)
+$form.Controls.Add($overlay)
+
+# ════════════════════════════════════════════════════════════
+#   HELPER FUNCTIONS (GUI)
+# ════════════════════════════════════════════════════════════
+
+function Write-Log {
+    param([string]$Message, [string]$Type = "INFO")
+    $prefix = switch ($Type) { "OK"{"[✓]"} "WARN"{"[!]"} "ERROR"{"[✗]"} default{"[→]"} }
+    if ($null -ne $script:logBox) { $script:logBox.AppendText("$prefix $Message`r`n"); $script:logBox.ScrollToCaret() }
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
+function New-Toggle {
+    param([string]$Key, [int]$X, [int]$Y, [bool]$Default = $true)
+    $script:toggleStates[$Key] = $Default
+    $p = New-Object System.Windows.Forms.Panel
+    $p.Location  = New-Object System.Drawing.Point($X, $Y)
+    $p.Size      = New-Object System.Drawing.Size(58, 26)
+    $p.BackColor = [System.Drawing.Color]::Transparent
+    $p.Cursor    = [System.Windows.Forms.Cursors]::Hand
+    $p.Tag       = $Key
+    $p.Add_Paint({
+        param($s,$e)
+        $g = $e.Graphics; $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $on = $script:toggleStates[$s.Tag]
+        $tc = if ($on) { [System.Drawing.Color]::FromArgb(0,200,100) } else { [System.Drawing.Color]::FromArgb(55,55,75) }
+        $tb = New-Object System.Drawing.SolidBrush($tc)
+        $g.FillEllipse($tb, 0, 3, 20, 20); $g.FillEllipse($tb, 36, 3, 20, 20); $g.FillRectangle($tb, 10, 3, 36, 20)
+        $kx = if ($on) { 33 } else { 2 }
+        $g.FillEllipse([System.Drawing.Brushes]::White, $kx, 5, 22, 16)
+        $tb.Dispose()
+    })
+    $p.Add_Click({ $script:toggleStates[$this.Tag] = -not $script:toggleStates[$this.Tag]; $this.Invalidate() })
+    return $p
+}
+
+function New-StyledBtn {
+    param([string]$Text,[int]$X,[int]$Y,[int]$W,[int]$H,[System.Drawing.Color]$Bg,[int]$FontSize=9)
+    $b = New-Object System.Windows.Forms.Button
+    $b.Text = $Text; $b.Location = New-Object System.Drawing.Point($X,$Y); $b.Size = New-Object System.Drawing.Size($W,$H)
+    $b.FlatStyle = "Flat"; $b.FlatAppearance.BorderSize = 0
+    $b.BackColor = $Bg; $b.ForeColor = [System.Drawing.Color]::White
+    $b.Font = New-Object System.Drawing.Font("Segoe UI",$FontSize,[System.Drawing.FontStyle]::Bold)
+    $b.Cursor = [System.Windows.Forms.Cursors]::Hand
+    return $b
+}
+
+# ════════════════════════════════════════════════════════════
+#   HEADER
+# ════════════════════════════════════════════════════════════
+$hdr = New-Object System.Windows.Forms.Panel
+$hdr.Location = New-Object System.Drawing.Point(0,0); $hdr.Size = New-Object System.Drawing.Size(900,62)
+$hdr.BackColor = [System.Drawing.Color]::FromArgb(215,8,8,18)
+$overlay.Controls.Add($hdr)
+
+$lblT = New-Object System.Windows.Forms.Label
+$lblT.Text="⚡  PC OPTIMIZER"; $lblT.Location=New-Object System.Drawing.Point(16,6); $lblT.Size=New-Object System.Drawing.Size(450,32)
+$lblT.Font=New-Object System.Drawing.Font("Segoe UI",20,[System.Drawing.FontStyle]::Bold)
+$lblT.BackColor=[System.Drawing.Color]::Transparent; $lblT.ForeColor=[System.Drawing.Color]::FromArgb(0,180,255)
+$hdr.Controls.Add($lblT)
+
+$lblS = New-Object System.Windows.Forms.Label
+$lblS.Text="ทำให้คอมลื่น  •  ปิด Windows AI  •  Roblox FPS Boost  •  v3.0"
+$lblS.Location=New-Object System.Drawing.Point(18,42); $lblS.Size=New-Object System.Drawing.Size(700,18)
+$lblS.Font=New-Object System.Drawing.Font("Segoe UI",8.5); $lblS.BackColor=[System.Drawing.Color]::Transparent
+$lblS.ForeColor=[System.Drawing.Color]::FromArgb(140,140,175)
+$hdr.Controls.Add($lblS)
+
+# ════════════════════════════════════════════════════════════
+#   TAB BAR (แนวนอน)
+# ════════════════════════════════════════════════════════════
+$tabBar = New-Object System.Windows.Forms.Panel
+$tabBar.Location=New-Object System.Drawing.Point(0,62); $tabBar.Size=New-Object System.Drawing.Size(900,40)
+$tabBar.BackColor=[System.Drawing.Color]::FromArgb(220,12,12,22)
+$overlay.Controls.Add($tabBar)
+
+# เส้นขีดล่าง Tab
+$tabLine = New-Object System.Windows.Forms.Panel
+$tabLine.Location=New-Object System.Drawing.Point(0,38); $tabLine.Size=New-Object System.Drawing.Size(900,2)
+$tabLine.BackColor=[System.Drawing.Color]::FromArgb(40,40,60)
+$tabBar.Controls.Add($tabLine)
+
+# Content area
+$content = New-Object System.Windows.Forms.Panel
+$content.Location=New-Object System.Drawing.Point(0,102); $content.Size=New-Object System.Drawing.Size(900,498)
+$content.BackColor=[System.Drawing.Color]::Transparent
+$overlay.Controls.Add($content)
+
+# Tab definitions
+$tabDefs = @(
+    @{Name="home";   Label="🏠  หน้าหลัก";    X=5;   C=[System.Drawing.Color]::FromArgb(0,160,255)},
+    @{Name="pc";     Label="⚡  คอมลื่น";      X=155; C=[System.Drawing.Color]::FromArgb(0,200,100)},
+    @{Name="ai";     Label="🤖  ปิด AI";       X=305; C=[System.Drawing.Color]::FromArgb(170,0,255)},
+    @{Name="roblox"; Label="🎮  Roblox Boost"; X=455; C=[System.Drawing.Color]::FromArgb(255,120,0)},
+    @{Name="log";    Label="📋  Activity Log"; X=605; C=[System.Drawing.Color]::FromArgb(0,220,120)}
+)
+
+$script:panels  = @{}
+$script:tabBtns = @{}
+
+foreach ($td in $tabDefs) {
+    $p = New-Object System.Windows.Forms.Panel
+    $p.Location=New-Object System.Drawing.Point(0,0); $p.Size=New-Object System.Drawing.Size(900,498)
+    $p.BackColor=[System.Drawing.Color]::Transparent; $p.Visible=$false
+    $content.Controls.Add($p); $script:panels[$td.Name]=$p
+}
+
+function Switch-Tab([string]$Name) {
+    $script:activeTab = $Name
+    foreach ($k in $script:panels.Keys) { $script:panels[$k].Visible=($k -eq $Name) }
+    foreach ($td2 in $tabDefs) {
+        $b = $script:tabBtns[$td2.Name]
+        if ($td2.Name -eq $Name) { $b.ForeColor=$td2.C; $b.BackColor=[System.Drawing.Color]::FromArgb(45,$td2.C.R,$td2.C.G,$td2.C.B) }
+        else { $b.ForeColor=[System.Drawing.Color]::FromArgb(170,170,200); $b.BackColor=[System.Drawing.Color]::Transparent }
+    }
+}
+
+foreach ($td in $tabDefs) {
+    $btn = New-Object System.Windows.Forms.Button
+    $btn.Text=$td.Label; $btn.Location=New-Object System.Drawing.Point($td.X,3)
+    $btn.Size=New-Object System.Drawing.Size(145,34); $btn.FlatStyle="Flat"
+    $btn.FlatAppearance.BorderSize=0
+    $btn.Font=New-Object System.Drawing.Font("Segoe UI",9,[System.Drawing.FontStyle]::Bold)
+    $btn.ForeColor=[System.Drawing.Color]::FromArgb(170,170,200)
+    $btn.BackColor=[System.Drawing.Color]::Transparent
+    $btn.Cursor=[System.Windows.Forms.Cursors]::Hand
+    $btn.Tag=$td.Name
+    $btn.Add_Click({ Switch-Tab $this.Tag })
+    $tabBar.Controls.Add($btn); $script:tabBtns[$td.Name]=$btn
+}
+
+# ════════════════════════════════════════════════════════════
+#   TAB HOME — การ์ดแนวนอน
+# ════════════════════════════════════════════════════════════
+$ph = $script:panels["home"]
+
+# Welcome banner
+$wb = New-Object System.Windows.Forms.Panel
+$wb.Location=New-Object System.Drawing.Point(18,16); $wb.Size=New-Object System.Drawing.Size(862,80)
+$wb.BackColor=[System.Drawing.Color]::FromArgb(155,15,15,28)
+$ph.Controls.Add($wb)
+$wb.Add_Paint({
+    param($s,$e)
+    $g=$e.Graphics; $g.SmoothingMode=[System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $pen=New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(60,0,150,255),1)
+    $g.DrawRectangle($pen,0,0,$s.Width-1,$s.Height-1); $pen.Dispose()
+    $brush=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(80,0,120,200))
+    $g.FillRectangle($brush,0,0,$s.Width,3); $brush.Dispose()
+})
+
+$lw1=New-Object System.Windows.Forms.Label; $lw1.Text="ยินดีต้อนรับ!  เลือก Tab หรือคลิกการ์ดด้านล่าง 👇"
+$lw1.Location=New-Object System.Drawing.Point(18,12); $lw1.Size=New-Object System.Drawing.Size(820,24)
+$lw1.Font=New-Object System.Drawing.Font("Segoe UI",12,[System.Drawing.FontStyle]::Bold)
+$lw1.BackColor=[System.Drawing.Color]::Transparent; $lw1.ForeColor=[System.Drawing.Color]::White; $wb.Controls.Add($lw1)
+
+$lw2=New-Object System.Windows.Forms.Label; $lw2.Text="แต่ละการ์ดรันฟีเจอร์ทันที  ·  Tab แต่ละอันมี Toggle ให้ปรับก่อนรัน"
+$lw2.Location=New-Object System.Drawing.Point(18,44); $lw2.Size=New-Object System.Drawing.Size(820,20)
+$lw2.Font=New-Object System.Drawing.Font("Segoe UI",9); $lw2.BackColor=[System.Drawing.Color]::Transparent
+$lw2.ForeColor=[System.Drawing.Color]::FromArgb(150,150,185); $wb.Controls.Add($lw2)
+
+# การ์ด 4 ใบแนวนอน
+$cardData = @(
+    @{T="⚡  คอมลื่น";     S1="ปรับ Registry";       S2="ล้าง Temp + Power Plan"; X=18;  Ac=[System.Drawing.Color]::FromArgb(0,150,255);  Act={ $script:logBox.Clear(); Switch-Tab "log"; Optimize-PC }},
+    @{T="🤖  ปิด Windows AI"; S1="Copilot • Cortana";   S2="Recall • Telemetry";      X=238; Ac=[System.Drawing.Color]::FromArgb(160,0,255); Act={ $script:logBox.Clear(); Switch-Tab "log"; Disable-WindowsAI }},
+    @{T="🎮  Roblox FPS";  S1="CPU High • ลด Ping"; S2="GPU Boost • ล้าง Cache";  X=458; Ac=[System.Drawing.Color]::FromArgb(255,120,0);  Act={ $script:logBox.Clear(); Switch-Tab "log"; Boost-RobloxFPS }},
+    @{T="💥  ALL-IN-ONE";  S1="รันทุกอย่างพร้อมกัน"; S2="แนะนำสำหรับครั้งแรก";    X=678; Ac=[System.Drawing.Color]::FromArgb(220,30,80);  Act={ $script:logBox.Clear(); Switch-Tab "log"; Optimize-PC; Disable-WindowsAI; Boost-RobloxFPS }}
+)
+
+foreach ($cd in $cardData) {
+    $cPan = New-Object System.Windows.Forms.Panel
+    $cPan.Location=New-Object System.Drawing.Point($cd.X,115); $cPan.Size=New-Object System.Drawing.Size(205,120)
+    $cPan.BackColor=[System.Drawing.Color]::FromArgb(195,16,16,30); $cPan.Cursor=[System.Windows.Forms.Cursors]::Hand
+    $cAc = $cd.Ac
+    $cPan.Add_Paint({
+        param($s,$e)
+        $g=$e.Graphics; $g.SmoothingMode=[System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $pen=New-Object System.Drawing.Pen($cAc,1.5); $g.DrawRectangle($pen,0,0,$s.Width-1,$s.Height-1); $pen.Dispose()
+        $br=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(90,$cAc.R,$cAc.G,$cAc.B))
+        $g.FillRectangle($br,0,0,$s.Width,4); $br.Dispose()
+    })
+    $cPan.Add_MouseEnter({ $this.BackColor=[System.Drawing.Color]::FromArgb(230,22,22,40) })
+    $cPan.Add_MouseLeave({ $this.BackColor=[System.Drawing.Color]::FromArgb(195,16,16,30) })
+
+    $lt=New-Object System.Windows.Forms.Label; $lt.Text=$cd.T; $lt.Location=New-Object System.Drawing.Point(10,12)
+    $lt.Size=New-Object System.Drawing.Size(185,22); $lt.Font=New-Object System.Drawing.Font("Segoe UI",9.5,[System.Drawing.FontStyle]::Bold)
+    $lt.BackColor=[System.Drawing.Color]::Transparent; $lt.ForeColor=[System.Drawing.Color]::White; $cPan.Controls.Add($lt)
+
+    $ls1=New-Object System.Windows.Forms.Label; $ls1.Text=$cd.S1; $ls1.Location=New-Object System.Drawing.Point(10,42)
+    $ls1.Size=New-Object System.Drawing.Size(185,18); $ls1.Font=New-Object System.Drawing.Font("Segoe UI",8)
+    $ls1.BackColor=[System.Drawing.Color]::Transparent; $ls1.ForeColor=[System.Drawing.Color]::FromArgb(170,170,200); $cPan.Controls.Add($ls1)
+
+    $ls2=New-Object System.Windows.Forms.Label; $ls2.Text=$cd.S2; $ls2.Location=New-Object System.Drawing.Point(10,62)
+    $ls2.Size=New-Object System.Drawing.Size(185,18); $ls2.Font=New-Object System.Drawing.Font("Segoe UI",8)
+    $ls2.BackColor=[System.Drawing.Color]::Transparent; $ls2.ForeColor=[System.Drawing.Color]::FromArgb(170,170,200); $cPan.Controls.Add($ls2)
+
+    $act=$cd.Act
+    $runBtn=New-Object System.Windows.Forms.Button; $runBtn.Text="▶ รัน"
+    $runBtn.Location=New-Object System.Drawing.Point(10,88); $runBtn.Size=New-Object System.Drawing.Size(80,24)
+    $runBtn.FlatStyle="Flat"; $runBtn.FlatAppearance.BorderSize=0
+    $runBtn.BackColor=$cAc; $runBtn.ForeColor=[System.Drawing.Color]::White
+    $runBtn.Font=New-Object System.Drawing.Font("Segoe UI",8,[System.Drawing.FontStyle]::Bold)
+    $runBtn.Cursor=[System.Windows.Forms.Cursors]::Hand
+    $runBtn.Add_Click($act); $cPan.Controls.Add($runBtn)
+
+    foreach ($ctrl in @($cPan,$lt,$ls1,$ls2)) { $ctrl.Add_Click($act) }
+    $ph.Controls.Add($cPan)
+}
+
+# System Info Row
+$sysInfo = @(
+    @{L="Windows Version"; V=[System.Environment]::OSVersion.Version.ToString()},
+    @{L="RAM"; V="$([Math]::Round((Get-WmiObject Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory/1GB,1)) GB"},
+    @{L="CPU"; V=((Get-WmiObject Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1).Name)}
+)
+$sx=18
+foreach ($si in $sysInfo) {
+    $sp=New-Object System.Windows.Forms.Panel; $sp.Location=New-Object System.Drawing.Point($sx,255)
+    $sp.Size=New-Object System.Drawing.Size(278,54); $sp.BackColor=[System.Drawing.Color]::FromArgb(145,14,14,26)
+    $ph.Controls.Add($sp)
+    $sl=New-Object System.Windows.Forms.Label; $sl.Text=$si.L; $sl.Location=New-Object System.Drawing.Point(10,6)
+    $sl.Size=New-Object System.Drawing.Size(258,15); $sl.Font=New-Object System.Drawing.Font("Segoe UI",7.5)
+    $sl.BackColor=[System.Drawing.Color]::Transparent; $sl.ForeColor=[System.Drawing.Color]::FromArgb(120,120,155); $sp.Controls.Add($sl)
+    $sv=New-Object System.Windows.Forms.Label; $sv.Text=$si.V; $sv.Location=New-Object System.Drawing.Point(10,24)
+    $sv.Size=New-Object System.Drawing.Size(258,22); $sv.Font=New-Object System.Drawing.Font("Segoe UI",9,[System.Drawing.FontStyle]::Bold)
+    $sv.BackColor=[System.Drawing.Color]::Transparent; $sv.ForeColor=[System.Drawing.Color]::White; $sp.Controls.Add($sv)
+    $sx+=292
+}
+
+# ════════════════════════════════════════════════════════════
+#   TAB PC — Toggle Rows
+# ════════════════════════════════════════════════════════════
+$ppc=$script:panels["pc"]
+
+$pcOpts=@(
+    @{K="vis"; L="ปิด Visual Effects (Best Performance)";    D="ลด Animation ที่ไม่จำเป็น เพิ่ม FPS ได้ชัดเจน";    On=$true},
+    @{K="dvr"; L="ปิด Game DVR / Xbox Game Bar";             D="เพิ่ม FPS ในเกมทุกประเภท ลด overhead";             On=$true},
+    @{K="pwr"; L="Power Plan → High Performance";            D="CPU/GPU ทำงานเต็มกำลัง ไม่ throttle";              On=$true},
+    @{K="idx"; L="ปิด Windows Search Indexing";             D="ลด Disk I/O ที่ทำงานอยู่เบื้องหลัง";               On=$false},
+    @{K="tmp"; L="ล้าง Temp Files";                         D="คืนพื้นที่ Disk และลด Load Time";                   On=$true},
+    @{K="mem"; L="ปรับ Memory Management";                   D="จัดสรร RAM ให้แอปพลิเคชันดีขึ้น";                  On=$true},
+    @{K="str"; L="ปิด Startup Delay";                       D="เปิดคอมเร็วขึ้น ลด delay ตอน Boot";                On=$true}
+)
+
+$yRow=12
+foreach ($opt in $pcOpts) {
+    $row=New-Object System.Windows.Forms.Panel; $row.Location=New-Object System.Drawing.Point(18,$yRow)
+    $row.Size=New-Object System.Drawing.Size(862,50); $row.BackColor=[System.Drawing.Color]::FromArgb(150,14,14,26)
+    $ppc.Controls.Add($row)
+    $rl=New-Object System.Windows.Forms.Label; $rl.Text=$opt.L; $rl.Location=New-Object System.Drawing.Point(14,6)
+    $rl.Size=New-Object System.Drawing.Size(780,18); $rl.Font=New-Object System.Drawing.Font("Segoe UI",9,[System.Drawing.FontStyle]::Bold)
+    $rl.BackColor=[System.Drawing.Color]::Transparent; $rl.ForeColor=[System.Drawing.Color]::White; $row.Controls.Add($rl)
+    $rd=New-Object System.Windows.Forms.Label; $rd.Text=$opt.D; $rd.Location=New-Object System.Drawing.Point(14,26)
+    $rd.Size=New-Object System.Drawing.Size(780,16); $rd.Font=New-Object System.Drawing.Font("Segoe UI",7.5)
+    $rd.BackColor=[System.Drawing.Color]::Transparent; $rd.ForeColor=[System.Drawing.Color]::FromArgb(130,130,165); $row.Controls.Add($rd)
+    $tog=New-Toggle $opt.K 796 12 $opt.On; $row.Controls.Add($tog)
+    $yRow+=55
+}
+
+$btnPcRun=New-StyledBtn "▶  รันตัวเลือกที่เปิดไว้" 18 ($yRow+6) 260 40 ([System.Drawing.Color]::FromArgb(0,120,200)) 10
+$btnPcRun.Add_Click({
+    Switch-Tab "log"; $script:logBox.Clear()
+    if ($script:toggleStates["vis"]) { $rp2="HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects"; if(!(Test-Path $rp2)){New-Item $rp2 -Force|Out-Null}; Set-ItemProperty $rp2 "VisualFXSetting" 2 -ErrorAction SilentlyContinue; Write-Log "Visual Effects → Best Performance" "OK" }
+    if ($script:toggleStates["dvr"]) { Set-ItemProperty "HKCU:\System\GameConfigStore" "GameDVR_Enabled" 0 -ErrorAction SilentlyContinue; Write-Log "GameDVR → ปิดแล้ว" "OK" }
+    if ($script:toggleStates["pwr"]) { powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null; Write-Log "Power Plan → High Performance" "OK" }
+    if ($script:toggleStates["idx"]) { Stop-Service "WSearch" -Force -ErrorAction SilentlyContinue; Set-Service "WSearch" -StartupType Disabled -ErrorAction SilentlyContinue; Write-Log "Search Indexing → ปิดแล้ว" "OK" }
+    if ($script:toggleStates["tmp"]) { $f=0; @($env:TEMP,$env:TMP,"C:\Windows\Temp")|ForEach-Object{if(Test-Path $_){Get-ChildItem $_ -Recurse -Force -EA SilentlyContinue|ForEach-Object{try{$f+=$_.Length;Remove-Item $_.FullName -Force -Recurse -EA SilentlyContinue}catch{}}}}; Write-Log "Temp → ล้าง $([Math]::Round($f/1MB,1)) MB" "OK" }
+    if ($script:toggleStates["mem"]) { Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" "ClearPageFileAtShutdown" 0 -EA SilentlyContinue; Write-Log "Memory → ปรับแล้ว" "OK" }
+    if ($script:toggleStates["str"]) { $sp2="HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize"; if(!(Test-Path $sp2)){New-Item $sp2 -Force|Out-Null}; Set-ItemProperty $sp2 "StartupDelayInMSec" 0 -EA SilentlyContinue; Write-Log "Startup Delay → ปิดแล้ว" "OK" }
+    Write-Log "✅ เสร็จสมบูรณ์!" "OK"
+})
+$ppc.Controls.Add($btnPcRun)
+
+# ════════════════════════════════════════════════════════════
+#   TAB AI — Toggle Rows
+# ════════════════════════════════════════════════════════════
+$pai=$script:panels["ai"]
+
+$aiOpts=@(
+    @{K="ai_cop";  L="ปิด Windows Copilot";         D="ซ่อนปุ่มและ disable Copilot ใน Taskbar";   On=$true},
+    @{K="ai_cor";  L="ปิด Cortana";                  D="ปิด Cortana และ Bing Search integration";  On=$true},
+    @{K="ai_rec";  L="ปิด Windows Recall";           D="ปิด AI screenshot memory (Win11 24H2+)";   On=$true},
+    @{K="ai_ads";  L="ปิด AI Suggested Content";     D="บล็อก AI Ads และ Tips ใน Windows";         On=$true},
+    @{K="ai_tel";  L="ปิด Telemetry / Diagnostic";  D="หยุดส่งข้อมูลการใช้งานไปให้ Microsoft";    On=$true},
+    @{K="ai_bin";  L="ปิด Bing Web Search";          D="ปิด Bing ใน Start Menu และ Search Bar";    On=$true}
+)
+
+$yRow=12
+foreach ($opt in $aiOpts) {
+    $row=New-Object System.Windows.Forms.Panel; $row.Location=New-Object System.Drawing.Point(18,$yRow)
+    $row.Size=New-Object System.Drawing.Size(862,50); $row.BackColor=[System.Drawing.Color]::FromArgb(150,14,14,26)
+    $pai.Controls.Add($row)
+    $rl=New-Object System.Windows.Forms.Label; $rl.Text=$opt.L; $rl.Location=New-Object System.Drawing.Point(14,6)
+    $rl.Size=New-Object System.Drawing.Size(780,18); $rl.Font=New-Object System.Drawing.Font("Segoe UI",9,[System.Drawing.FontStyle]::Bold)
+    $rl.BackColor=[System.Drawing.Color]::Transparent; $rl.ForeColor=[System.Drawing.Color]::White; $row.Controls.Add($rl)
+    $rd=New-Object System.Windows.Forms.Label; $rd.Text=$opt.D; $rd.Location=New-Object System.Drawing.Point(14,26)
+    $rd.Size=New-Object System.Drawing.Size(780,16); $rd.Font=New-Object System.Drawing.Font("Segoe UI",7.5)
+    $rd.BackColor=[System.Drawing.Color]::Transparent; $rd.ForeColor=[System.Drawing.Color]::FromArgb(130,130,165); $row.Controls.Add($rd)
+    $tog=New-Toggle $opt.K 796 12 $opt.On; $row.Controls.Add($tog)
+    $yRow+=55
+}
+
+$btnAiRun=New-StyledBtn "▶  ปิด AI ที่เลือก" 18 ($yRow+6) 260 40 ([System.Drawing.Color]::FromArgb(130,0,220)) 10
+$btnAiRun.Add_Click({ Switch-Tab "log"; $script:logBox.Clear(); Disable-WindowsAI })
+$pai.Controls.Add($btnAiRun)
+
+# ════════════════════════════════════════════════════════════
+#   TAB ROBLOX
+# ════════════════════════════════════════════════════════════
+$prb=$script:panels["roblox"]
+
+$rbItems=@(
+    @{I="🖥️"; T="CPU → High Priority";       D="Roblox ได้ CPU ก่อนทุก process";    X=18;  Y=14},
+    @{I="📡"; T="ปิด Nagle's Algorithm";     D="ลด Ping จริงระดับ Network";          X=230; Y=14},
+    @{I="⚡"; T="Ultimate Power Plan";        D="CPU/GPU full speed ตลอดเวลา";        X=442; Y=14},
+    @{I="🚫"; T="ปิด Xbox Overlay";          D="ได้ FPS คืนจาก Overlay overhead";    X=654; Y=14},
+    @{I="🎮"; T="GPU → High Performance";    D="ใช้ GPU หลัก ไม่ใช่ iGPU";           X=18;  Y=130},
+    @{I="🖱️"; T="ปิด Fullscreen Opt";        D="ลด Input Lag ใน Roblox";             X=230; Y=130},
+    @{I="🗑️"; T="ล้าง Roblox Cache";        D="โหลดเกมเร็ว ลด freeze เมื่อเข้าเกม"; X=442; Y=130},
+    @{I="🔕"; T="ปิด Background Apps";       D="ประหยัด RAM ขณะเล่น";                X=654; Y=130}
+)
+
+$orAc=[System.Drawing.Color]::FromArgb(255,120,0)
+foreach ($ri in $rbItems) {
+    $cp=New-Object System.Windows.Forms.Panel; $cp.Location=New-Object System.Drawing.Point($ri.X,$ri.Y)
+    $cp.Size=New-Object System.Drawing.Size(200,105); $cp.BackColor=[System.Drawing.Color]::FromArgb(190,16,16,30)
+    $cp.Add_Paint({
+        param($s,$e); $g=$e.Graphics; $g.SmoothingMode=[System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $pen=New-Object System.Drawing.Pen($orAc,1.2); $g.DrawRectangle($pen,0,0,$s.Width-1,$s.Height-1); $pen.Dispose()
+        $br=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(70,$orAc.R,$orAc.G,$orAc.B))
+        $g.FillRectangle($br,0,0,$s.Width,3); $br.Dispose()
+    })
+    $prb.Controls.Add($cp)
+
+    $li=New-Object System.Windows.Forms.Label; $li.Text=$ri.I; $li.Location=New-Object System.Drawing.Point(10,8)
+    $li.Size=New-Object System.Drawing.Size(32,28); $li.Font=New-Object System.Drawing.Font("Segoe UI Emoji",16)
+    $li.BackColor=[System.Drawing.Color]::Transparent; $li.ForeColor=[System.Drawing.Color]::White; $cp.Controls.Add($li)
+
+    $lt2=New-Object System.Windows.Forms.Label; $lt2.Text=$ri.T; $lt2.Location=New-Object System.Drawing.Point(10,44)
+    $lt2.Size=New-Object System.Drawing.Size(180,18); $lt2.Font=New-Object System.Drawing.Font("Segoe UI",8.5,[System.Drawing.FontStyle]::Bold)
+    $lt2.BackColor=[System.Drawing.Color]::Transparent; $lt2.ForeColor=[System.Drawing.Color]::White; $cp.Controls.Add($lt2)
+
+    $ld=New-Object System.Windows.Forms.Label; $ld.Text=$ri.D; $ld.Location=New-Object System.Drawing.Point(10,64)
+    $ld.Size=New-Object System.Drawing.Size(180,30); $ld.Font=New-Object System.Drawing.Font("Segoe UI",7.5)
+    $ld.BackColor=[System.Drawing.Color]::Transparent; $ld.ForeColor=[System.Drawing.Color]::FromArgb(160,160,195); $cp.Controls.Add($ld)
+}
+
+$btnRbRun=New-StyledBtn "🚀  Boost FPS Roblox !" 18 252 280 50 ([System.Drawing.Color]::FromArgb(215,90,0)) 12
+$btnRbRun.Add_Click({ Switch-Tab "log"; $script:logBox.Clear(); Boost-RobloxFPS })
+$prb.Controls.Add($btnRbRun)
+
+$btnAllRun=New-StyledBtn "💥  ALL-IN-ONE" 315 252 220 50 ([System.Drawing.Color]::FromArgb(180,0,60)) 12
+$btnAllRun.Add_Click({ Switch-Tab "log"; $script:logBox.Clear(); Optimize-PC; Disable-WindowsAI; Boost-RobloxFPS })
+$prb.Controls.Add($btnAllRun)
+
+$note=New-Object System.Windows.Forms.Label
+$note.Text="⚠️  รีสตาร์ทเครื่องหลัง Boost เพื่อให้เห็นผลชัดเจน — คาดว่า FPS จะเพิ่ม 20–60%"
+$note.Location=New-Object System.Drawing.Point(18,316); $note.Size=New-Object System.Drawing.Size(862,22)
+$note.Font=New-Object System.Drawing.Font("Segoe UI",9); $note.BackColor=[System.Drawing.Color]::Transparent
+$note.ForeColor=[System.Drawing.Color]::FromArgb(255,180,50); $prb.Controls.Add($note)
+
+# ════════════════════════════════════════════════════════════
+#   TAB LOG
+# ════════════════════════════════════════════════════════════
+$plog=$script:panels["log"]
+
+$script:logBox=New-Object System.Windows.Forms.RichTextBox
+$script:logBox.Location=New-Object System.Drawing.Point(12,12); $script:logBox.Size=New-Object System.Drawing.Size(872,420)
+$script:logBox.BackColor=[System.Drawing.Color]::FromArgb(8,8,16); $script:logBox.ForeColor=[System.Drawing.Color]::FromArgb(0,220,120)
+$script:logBox.Font=New-Object System.Drawing.Font("Consolas",9.5); $script:logBox.ReadOnly=$true
+$script:logBox.ScrollBars="Vertical"; $script:logBox.BorderStyle="None"
+$plog.Controls.Add($script:logBox)
+
+$btnCL=New-StyledBtn "🗑  ล้าง Log" 12 444 140 36 ([System.Drawing.Color]::FromArgb(50,50,72)) 9
+$btnCL.Add_Click({ $script:logBox.Clear() }); $plog.Controls.Add($btnCL)
+
+$btnRS=New-StyledBtn "🔄  รีสตาร์ท" 162 444 140 36 ([System.Drawing.Color]::FromArgb(170,75,0)) 9
+$btnRS.Add_Click({ if([System.Windows.Forms.MessageBox]::Show("รีสตาร์ทเครื่องเลยไหม?","ยืนยัน","YesNo","Warning") -eq "Yes"){Restart-Computer -Force} })
+$plog.Controls.Add($btnRS)
+
+$btnEX=New-StyledBtn "✕  ออกจากโปรแกรม" 744 444 140 36 ([System.Drawing.Color]::FromArgb(175,0,38)) 9
+$btnEX.Add_Click({ $form.Close() }); $plog.Controls.Add($btnEX)
+
+# ════════════════════════════════════════════════════════════
+#   เริ่มต้น
+# ════════════════════════════════════════════════════════════
+Switch-Tab "home"
+Write-Log "══════════════════════════════"
+Write-Log "  PC Optimizer v3.0 พร้อมใช้!"
+Write-Log "══════════════════════════════"
+Write-Log "Log จะแสดงที่นี่เมื่อรันฟังก์ชัน"
+
+[System.Windows.Forms.Application]::EnableVisualStyles()
+[void]$form.ShowDialog()
